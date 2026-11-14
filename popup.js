@@ -1,0 +1,225 @@
+document.addEventListener('DOMContentLoaded', () => {
+
+  // ── Stance Picker ──
+  const stancePicker = document.getElementById('stance-picker');
+
+  chrome.storage.local.get(['stance'], (result) => {
+    const saved = result.stance !== undefined ? result.stance : 1; // Default: Neutral
+    stancePicker.dataset.selected = saved;
+  });
+
+  document.querySelectorAll('.stance-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const index = btn.dataset.index;
+      stancePicker.dataset.selected = index;
+      chrome.storage.local.set({ stance: index }, () => {
+        console.log(`Stance saved: ${index}`);
+      });
+    });
+  });
+
+
+  chrome.storage.local.get(['depth'], (result) => {
+    //console.log(`fetched elo-range as ${result.depth}`)
+    const range = document.getElementById('elo-range');
+    if (range.value != result.depth) {
+      range.value = result.depth || 20; // Default to 20 if not set
+      const event = new Event('input');
+      range.dispatchEvent(event);
+    }
+  });
+
+});
+
+function getEloFromDepth(depth) {
+  // Accurate linearly scaling depth-elo estimation, backed by
+  //  - https://web.ist.utl.pt/diogo.ferreira/papers/ferreira13impact.pdf
+  //  - Independent testers measuring Stockfish depth: 40 at 3400
+  //  - Independent testers measuring Stockfish depth: 1 at 1400
+
+  const stockfishDepthElo = [
+    { "depth": 1, "elo": 1400 },
+    { "depth": 2, "elo": 1480 },
+    { "depth": 3, "elo": 1560 },
+    { "depth": 4, "elo": 1640 },
+    { "depth": 5, "elo": 1720 },
+    { "depth": 6, "elo": 1800 },
+    { "depth": 7, "elo": 1880 },
+    { "depth": 8, "elo": 1960 },
+    { "depth": 9, "elo": 2040 },
+    { "depth": 10, "elo": 2120 },
+    { "depth": 11, "elo": 2200 },
+    { "depth": 12, "elo": 2280 },
+    { "depth": 13, "elo": 2360, "time": "3 seconds / move", "title": "CM" },
+    { "depth": 14, "elo": 2440, "time": "7 seconds / move", "title": "CM" },
+    { "depth": 15, "elo": 2520, "time": "12 seconds / move", "title": "FM" },
+    { "depth": 16, "elo": 2600, "time": "15 seconds / move", "title": "FM" },
+    { "depth": 17, "elo": 2680, "time": "23 seconds / move", "title": "IM" },
+    { "depth": 18, "elo": 2760, "time": "30 seconds / move", "title": "IM" },
+    { "depth": 19, "elo": 2840, "time": "44 seconds / move", "title": "GM" },
+    { "depth": 20, "elo": 2900, "time": "52 seconds / move", "title": "GM" },
+    { "depth": 21, "elo": 2925, "time": "1 minute / move", "title": "GM" },
+    { "depth": 22, "elo": 2950, "time": "1 minute 7 seconds / move", "title": "GM" },
+    { "depth": 23, "elo": 2975, "time": "1 minute 18 seconds / move", "title": "GM" },
+    { "depth": 24, "elo": 3000, "time": "1 minute 30 seconds / move", "title": "GM" }
+    // after further analysis, I decided to omit any depth >24. It just takes an unreasonable amount of time to compute
+  ]
+
+  // Find the depth object in the array
+  const result = stockfishDepthElo.find(entry => entry.depth === parseInt(depth));
+
+  // Return ELO if found, otherwise return a fallback message
+
+  //console.log(result)
+  if (result?.time) {
+    document.getElementById("elo").innerHTML = `${result.elo} <span style="display:inline-block;padding:1px 4px;border:1px solid #2a2927;color:#8c8981;font-family:Consolas,monospace;font-size:8px;letter-spacing:.08em;vertical-align:middle;">${result.title}</span>`;
+    document.getElementById("compute-warning").style.display = "block";
+    document.getElementById("compute-warning").innerHTML = `<span id="elo-time">${result.time}</span>`;
+  } else {
+    document.getElementById("elo").innerHTML = `${result.elo}`;
+    document.getElementById("compute-warning").style.display = "none";
+  }
+  
+  return result ? result.elo : `Depth ${depth} not found in the dataset.`;
+}
+
+document.getElementById("elo-range").addEventListener("input", (event) => {
+
+
+  //console.log("Input value changed to:", event.target.value);
+  getEloFromDepth(event.target.value)
+
+});
+
+
+document.getElementById("elo-range").addEventListener("change", (event) => {
+  
+  let depth = event.target.value;
+
+  chrome.storage.local.set({ depth }, () => {
+    console.log(`Elo range state saved: ${depth}`);
+  });
+})
+
+
+
+// ---------------------------------------------------------------------------
+// Auto mode: every new game gets arrows with a random ELO from the range.
+// The popup is the only control surface - the overlay helper just follows.
+// ---------------------------------------------------------------------------
+
+const OVERLAY_ENDPOINT = "http://127.0.0.1:8791";
+
+document.addEventListener('DOMContentLoaded', () => {
+  const autoCheck = document.getElementById('auto-mode');
+  const autoMin = document.getElementById('auto-min');
+  const autoMax = document.getElementById('auto-max');
+  const autoMinValue = document.getElementById('auto-min-value');
+  const autoMaxValue = document.getElementById('auto-max-value');
+  const overlayStatus = document.getElementById('overlay-status');
+  const overlayText = document.getElementById('overlay-text');
+
+  const paint = () => {
+    autoMinValue.textContent = autoMin.value;
+    autoMaxValue.textContent = autoMax.value;
+  };
+
+  const pushSettings = () => {
+    const body = `${autoCheck.checked ? 1 : 0};${autoMin.value};${autoMax.value}`;
+    fetch(`${OVERLAY_ENDPOINT}/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body
+    }).catch(() => {});
+  };
+
+  let settingsTimer = null;
+  const saveSettings = () => {
+    chrome.storage.local.set({
+      auto: autoCheck.checked,
+      minElo: parseInt(autoMin.value, 10),
+      maxElo: parseInt(autoMax.value, 10)
+    });
+    clearTimeout(settingsTimer);
+    settingsTimer = setTimeout(pushSettings, 100);
+  };
+
+  chrome.storage.local.get(['auto', 'minElo', 'maxElo'], (saved) => {
+    autoCheck.checked = !!saved.auto;
+    autoMin.value = saved.minElo || 1400;
+    autoMax.value = saved.maxElo || 2200;
+    if (parseInt(autoMin.value, 10) > parseInt(autoMax.value, 10)) {
+      autoMax.value = autoMin.value;
+    }
+    paint();
+    pushSettings();
+  });
+
+  autoMin.addEventListener('input', () => {
+    if (parseInt(autoMin.value, 10) > parseInt(autoMax.value, 10)) {
+      autoMax.value = autoMin.value;
+    }
+    paint();
+    saveSettings();
+  });
+
+  autoMax.addEventListener('input', () => {
+    if (parseInt(autoMax.value, 10) < parseInt(autoMin.value, 10)) {
+      autoMin.value = autoMax.value;
+    }
+    paint();
+    saveSettings();
+  });
+
+  autoCheck.addEventListener('change', saveSettings);
+
+  fetch(`${OVERLAY_ENDPOINT}/ping`, { cache: 'no-store' })
+    .then((response) => {
+      overlayStatus.dataset.state = response.ok ? 'ok' : 'warn';
+      overlayText.textContent = response.ok ? 'overlay connected' : 'no answer';
+    })
+    .catch(() => {
+      overlayStatus.dataset.state = 'off';
+      overlayText.textContent = 'overlay off — run start.vbs';
+    });
+});
+
+
+document.getElementById("scan-start").addEventListener("click", () => {
+  // Query the current active tab
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs[0];  // Get the active tab
+      const url = tab.url || "";
+
+      // Check if the tab is a supported chess site
+      const onChess = url.includes("chess.com");
+
+      if (onChess) {
+
+          let args = {
+            'depth': document.getElementById("elo-range").value,
+            'stance': document.getElementById("stance-picker").dataset.selected
+          }
+
+          chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: function(args) {
+                window.args = args;  // Assign the arguments to the global window object
+            },
+            args: [args]
+        });
+
+
+chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    files: ['arrow-bridge.js', 'engine.js']
+});
+
+
+
+      } else {
+          // Optionally, alert the user if the tab is not a supported page
+          alert("This is a chess.com page only.");
+      }
+  });
+});

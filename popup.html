@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Umbra</title>
+</head>
+<body>
+  <div class="app">
+    <header class="masthead">
+      <img class="mark" src="icon.png" alt="" width="26" height="26">
+      <div class="brand">
+        <h1>Umbra</h1>
+        <p>Chess overlay</p>
+      </div>
+      <span class="version">v5.5</span>
+    </header>
+
+    <section class="block">
+      <div class="label">Style</div>
+      <div class="seg" id="stance-picker" data-selected="1">
+        <button class="stance-btn" data-index="0">Defensive</button>
+        <button class="stance-btn" data-index="1">Neutral</button>
+        <button class="stance-btn" data-index="2">Offensive</button>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="row">
+        <span class="label">Engine strength</span>
+        <span id="elo" class="figure">2200</span>
+      </div>
+      <input type="range" min="1" max="24" value="11" class="slider" id="elo-range">
+      <div id="compute-warning" class="note" style="display:none;">
+        <span id="elo-time">1 minute / move</span>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="row">
+        <span class="label">Auto mode</span>
+        <label class="switch">
+          <input type="checkbox" id="auto-mode">
+          <span class="track"><span class="thumb"></span></span>
+        </label>
+      </div>
+      <div class="range">
+        <div class="range-head"><span class="label tiny">From</span><span id="auto-min-value" class="figure sm">1400</span></div>
+        <input type="range" id="auto-min" class="slider thin" min="1400" max="3000" step="25" value="1400">
+      </div>
+      <div class="range">
+        <div class="range-head"><span class="label tiny">To</span><span id="auto-max-value" class="figure sm">2200</span></div>
+        <input type="range" id="auto-max" class="slider thin" min="1400" max="3000" step="25" value="2200">
+      </div>
+    </section>
+
+    <section class="block actions">
+      <div id="overlay-status" class="status" data-state="idle">
+        <span class="dot"></span><span id="overlay-text">checking overlay</span>
+      </div>
+      <button class="scan" id="scan-start">Scan board</button>
+    </section>
+
+    <footer class="foot">
+      <span>Local engine</span>
+      <span class="sep">/</span>
+      <span>No cloud</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+
+  <style>
+    :root {
+      --ink: #0a0a0a;
+      --line: #1d1d1c;
+      --line-2: #2a2927;
+      --text: #e8e4dc;
+      --muted: #8c8981;
+      --faint: #57554f;
+      --ok: #8fa98c;
+      --warn: #b79a6b;
+      --bad: #b77a6e;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      line-height: 1.5;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      margin: 0;
+      width: 288px;
+      background: var(--ink);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+      font-size: 12px;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app { padding: 18px 16px 12px; }
+
+    /* ── masthead ─────────────────────────────────────────────── */
+    .masthead {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .mark {
+      width: 26px;
+      height: 26px;
+      flex: none;
+      border-radius: 5px;
+      display: block;
+    }
+
+    .brand { flex: 1; min-width: 0; }
+
+    .brand h1 {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      font-size: 16px;
+      font-weight: 400;
+      letter-spacing: .30em;
+      text-transform: uppercase;
+      line-height: 1.1;
+      color: var(--text);
+    }
+
+    .brand p {
+      margin: 4px 0 0;
+      font-size: 8.5px;
+      font-weight: 500;
+      letter-spacing: .20em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
+
+    .version {
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 9px;
+      letter-spacing: .04em;
+      color: var(--faint);
+    }
+
+    /* ── blocks ───────────────────────────────────────────────── */
+    .block { padding: 13px 0 14px; }
+    .block + .block { border-top: 1px solid var(--line); }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .label {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .label.tiny { color: var(--faint); letter-spacing: .16em; }
+
+    .figure {
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 14px;
+      letter-spacing: .02em;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .figure.sm { font-size: 11px; color: var(--muted); }
+
+    /* ── segmented ────────────────────────────────────────────── */
+    .seg {
+      display: flex;
+      margin-top: 9px;
+      height: 32px;
+      border: 1px solid var(--line-2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .stance-btn {
+      flex: 1;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      color: var(--muted);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .stance-btn + .stance-btn { border-left: 1px solid var(--line); }
+
+    .stance-btn:hover { color: var(--text); }
+
+    .seg[data-selected="0"] .stance-btn:nth-child(1),
+    .seg[data-selected="1"] .stance-btn:nth-child(2),
+    .seg[data-selected="2"] .stance-btn:nth-child(3) {
+      background: var(--text);
+      color: var(--ink);
+      border-left-color: transparent;
+    }
+
+    .seg[data-selected="1"] .stance-btn:nth-child(3),
+    .seg[data-selected="2"] .stance-btn:nth-child(3) { border-left-color: var(--line); }
+
+    /* ── sliders ──────────────────────────────────────────────── */
+    .slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 16px;
+      margin: 8px 0 0;
+      background: transparent;
+      cursor: pointer;
+      outline: none;
+    }
+
+    .slider.thin { height: 14px; margin-top: 5px; }
+
+    .slider::-webkit-slider-runnable-track {
+      height: 1px;
+      background: var(--line-2);
+    }
+
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 10px;
+      height: 10px;
+      margin-top: -4.5px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--text);
+    }
+
+    .slider::-moz-range-track {
+      height: 1px;
+      background: var(--line-2);
+    }
+
+    .slider::-moz-range-thumb {
+      width: 10px;
+      height: 10px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--text);
+    }
+
+    .slider:focus-visible { outline: 1px solid var(--text); outline-offset: 3px; }
+
+    .note {
+      margin-top: 7px;
+      font-size: 9px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--warn);
+    }
+
+    .range { margin-top: 11px; }
+
+    .range-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    /* ── switch ───────────────────────────────────────────────── */
+    .switch { position: relative; display: inline-flex; cursor: pointer; }
+    .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+    .switch .track {
+      width: 34px;
+      height: 18px;
+      border-radius: 999px;
+      border: 1px solid var(--line-2);
+      background: transparent;
+      display: inline-flex;
+      align-items: center;
+      padding: 4px;
+      transition: background .15s ease, border-color .15s ease;
+    }
+
+    .switch .thumb {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--faint);
+      transition: transform .15s ease, background .15s ease;
+    }
+
+    .switch input:checked + .track {
+      background: var(--text);
+      border-color: var(--text);
+    }
+
+    .switch input:checked + .track .thumb {
+      transform: translateX(16px);
+      background: var(--ink);
+    }
+
+    .switch input:focus-visible + .track { outline: 1px solid var(--text); outline-offset: 3px; }
+
+    /* ── status + action ──────────────────────────────────────── */
+    .actions { padding-bottom: 6px; }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .status .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--faint);
+      flex: none;
+    }
+
+    .status[data-state="ok"] .dot { background: var(--ok); }
+    .status[data-state="warn"] .dot { background: var(--warn); }
+    .status[data-state="off"] .dot { background: var(--bad); }
+
+    .scan {
+      width: 100%;
+      height: 40px;
+      margin-top: 11px;
+      background: transparent;
+      border: 1px solid var(--line-2);
+      border-radius: 2px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: .26em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    .scan:hover {
+      background: var(--text);
+      border-color: var(--text);
+      color: var(--ink);
+    }
+
+    .scan:active { transform: translateY(1px); }
+    .scan:disabled { opacity: .35; cursor: default; }
+    .scan:focus-visible { outline: 1px solid var(--text); outline-offset: 2px; }
+
+    /* ── footer ───────────────────────────────────────────────── */
+    .foot {
+      display: flex;
+      justify-content: center;
+      gap: 7px;
+      padding-top: 12px;
+      font-size: 8px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
+
+    .foot .sep { opacity: .5; }
+
+    button, input { font-family: inherit; }
+
+    /* Force CSS painting: native button theming ignores the dark palette. */
+    button {
+      -webkit-appearance: none;
+      appearance: none;
+    }
+  </style>
+</body>
+</html>

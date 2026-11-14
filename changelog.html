@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>ChessBot — What's New</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 0 20px;
+      color: #222;
+    }
+    h1 { font-size: 24px; display: flex; align-items: center; gap: 8px; }
+    .small { color: #888; font-size: 14px; }
+    ul { line-height: 1.6; }
+    a {
+      color: #414141;
+    }
+    .rainbow {
+      background: linear-gradient(90deg, #ff3b3b, #ff9f1a, #ffd60a, #2ecc71, #1fa2ff, #8e5cff, #ff3bd4, #ff3b3b);
+      background-size: 200% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-decoration-color: #8e5cff; /* keep the underline visible despite transparent text */
+      animation: rainbow 3s linear infinite;
+    }
+    @keyframes rainbow {
+      to { background-position: -200% 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      a { animation: none; }
+    }
+
+    .lang-bar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 8px;
+    }
+    #lang-select {
+      font-size: 13px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      background: #fafafa;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="lang-bar">
+    <select id="lang-select"></select>
+  </div>
+
+  <h1>
+    <img width="20" height="20" src="https://raw.githubusercontent.com/bogenc/ChessBot/refs/heads/main/extension/icon.png">
+    <span data-i18n="title"></span>
+  </h1>
+  <p class="small"><span data-i18n="versionLabel"></span> 5.2.3</p>
+  <p data-i18n="devIntro"></p>
+  <p class="small" data-i18n="changelogLabel"></p>
+  <ul>
+    <li data-i18n="item1"></li>
+    <li data-i18n="item2"></li>
+    <li data-i18n="item3"></li>
+  </ul>
+  <p class="small" data-i18n="suggestionsLabel"></p>
+  <p data-i18n="suggestionsText"></p>
+  <p class="small" data-i18n="seeYouLabel"></p>
+  <p data-i18n="farewellText"></p>
+  <p class="small" style="text-align: center;" data-i18n="footer"></p>
+
+  <script src="changelog.js"></script>
+</body>
+</html>
