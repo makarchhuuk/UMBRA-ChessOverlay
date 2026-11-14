@@ -11,11 +11,12 @@
   <img alt="Version" src="https://img.shields.io/badge/version-5.5.0-0a0a0a?style=flat-square">
   <img alt="Platform" src="https://img.shields.io/badge/Windows-10%2F11-0a0a0a?style=flat-square">
   <img alt="Browser" src="https://img.shields.io/badge/Firefox-Supported-orange?style=flat-square">
+  <img alt="Chrome/Edge" src="https://img.shields.io/badge/Chrome%2FEdge-Soon-0a0a0a?style=flat-square">
   <img alt="Engine" src="https://img.shields.io/badge/engine-local%20WASM-0a0a0a?style=flat-square">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-0a0a0a?style=flat-square">
 </p>
 
-> **Note:** Currently, Umbra officially supports **Firefox**. Patches and updates adding full Chrome/Edge support are coming soon!
+> **Note:** Currently, Umbra officially supports **Firefox only**. Patches and updates adding full **Chrome/Edge** support are already in development and will ship in upcoming releases.
 
 ---
 
@@ -89,7 +90,6 @@ The helper listens exclusively on `127.0.0.1:8791` (loopback only) — nothing i
 
 ## Repository Layout
 
-text
 umbra/                 <- repository root (load this folder in about:debugging)
   manifest.json        <- extension configuration
   popup.html, popup.js <- extension popup UI & logic
@@ -102,26 +102,67 @@ umbra/                 <- repository root (load this folder in about:debugging)
     start.vbs          <- silent launcher (no console window)
     arrow-helper.ps1   <- overlay window, tray management, hotkeys
     ArrowServer.cs     <- local loopback HTTP server (port 8791)
+    
 Credits & License
 Based on bogenc/ChessBot, which carries no license file. The modifications in this repository — rebranding, tray-only controls, single-arrow overlay, black outline hint, and complete telemetry/analytics removal — are released under the MIT License. See LICENSE for details.
 
-По-русски
-Umbra — минималистичный оверлей для chess.com: стрелка с подсказкой хода и тонкая рамка на целевой клетке (рамка остается видимой, пока думает соперник).
+######################################################################################################################################################
 
-Внимание: На данный момент поддерживается только Firefox. Патчи и обновления с поддержкой Chrome/Edge выйдут совсем скоро!
+По-русски
+Umbra — минималистичный оверлей для chess.com: стрелка с подсказкой хода и тонкая рамка на целевой клетке (рамка остаётся видимой, пока думает соперник).
+
+Сейчас поддерживается только Firefox. Патчи и обновления с полной поддержкой Chrome/Edge уже в разработке и выйдут в ближайших релизах.
 
 Установка и запуск
-Расширение (Firefox): Перейдите в about:debugging#/runtime/this-firefox, нажмите Load Temporary Add-on... и выберите любой файл из папки репозитория (например, manifest.json).
+Расширение (Firefox): откройте about:debugging#/runtime/this-firefox, нажмите Load Temporary Add-on... и выберите любой файл из папки репозитория (например, manifest.json).
 
-Оверлей: Дважды кликните по файлу overlay/start.vbs. В трее появится иконка Umbra.
+Оверлей: дважды кликните overlay/start.vbs. В трее появится иконка Umbra.
 
 Управление: ЛКМ или ПКМ по иконке в трее открывает меню («Перезапустить», «Выключить», «Скрыть/Показать стрелки», «Статус», «Открыть лог»).
 
 Хоткеи: Ctrl+Alt+H — скрыть/показать стрелки, Ctrl+Alt+Q — выход.
 
+Элементы поповера
+Элемент	Действие
+Style	Defensive / Neutral / Offensive — смещает предпочтения движка.
+Engine strength	Глубина поиска и лимит времени. Выше — медленнее и ресурсоёмче.
+Auto mode	Автоматически запускает движок для партий в заданном диапазоне Elo.
+Status	Текущее состояние связи с помощником для Windows.
 Частые проблемы
-Поповер пишет overlay off — запустить overlay/start.vbs и нажать Scan board заново.
+Поповер пишет overlay off — запустите overlay/start.vbs и нажмите Scan board заново.
 
-Иконки нет в трее — Windows прячет её под стрелочку ^ на панели задач (настройте отображение в параметрах панели задач).
+Стрелка не появляется — окно помощника может быть скрыто за другими, либо иконки в трее свёрнуты. Проверьте трей (Windows прячет новые иконки под ^ — закрепите через Параметры → Персонализация → Панель задач → Другие значки в системном трее).
+
+Иконки нет в трее — Windows прячет её под стрелочкой ^ на панели задач (настройте отображение в параметрах панели задач).
 
 Логи работы сохраняются здесь: %TEMP%\umbra-arrow.log.
+
+Безопасность и приватность
+100% локально: без облачных сервисов, аккаунтов и телеметрии. Модуль аналитики и его удалённый эндпоинт полностью удалены в этом форке.
+
+Изолированный бэкенд: помощник привязан строго к 127.0.0.1. Внешние порты недоступны.
+
+Минимум разрешений: расширение запрашивает доступ только к chess.com (чтение доски) и 127.0.0.1:8791 (связь с локальным помощником).
+
+Структура репозитория
+text
+umbra/                 <- корень репозитория (эту папку грузим в about:debugging)
+  manifest.json        <- конфигурация расширения
+  popup.html, popup.js <- UI и логика поповера
+  background.js        <- обмен сообщениями и внедрение движка
+  arrow-bridge.js      <- читает состояние доски, шлёт геометрию помощнику
+  engine.js            <- цикл движка + расчёт стрелки
+  icon.png             <- логотип (также иконка в трее)
+  assets/banner.png    <- баннер для README
+  overlay/             <- помощник для Windows (PowerShell + C#)
+    start.vbs          <- тихий запуск (без окна консоли)
+    arrow-helper.ps1   <- окно оверлея, трей, горячие клавиши
+    ArrowServer.cs     <- локальный loopback HTTP-сервер (порт 8791)
+
+    
+Благодарности и лицензия
+Основано на bogenc/ChessBot, в котором нет файла лицензии. Изменения в этом репозитории — ребрендинг, управление только через трей, оверлей с одной стрелкой, чёрная рамка-подсказка и полное удаление телеметрии/аналитики — выпущены под лицензией MIT. Подробности в LICENSE.
+
+
+
+
