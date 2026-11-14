@@ -1,9 +1,3 @@
-browser.runtime.onInstalled.addListener((details) => {
-  if (details.reason === "update") {
-    browser.tabs.create({ url: browser.runtime.getURL("changelog.html") });
-  }
-});
-
 console.info("[UMBRA] background ready (overlay build 5.5.0)");
 
 // ---------------------------------------------------------------------------
@@ -207,4 +201,3 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 browser.tabs.query({ url: ["https://*.chess.com/*"] }).then((tabs) => {
   for (const tab of tabs) injectBridge(tab.id);
 }).catch(() => {});
-
