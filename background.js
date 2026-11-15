@@ -1,4 +1,4 @@
-console.info("[UMBRA] background ready (overlay build 5.5.0)");
+console.info("[UMBRA] background ready (overlay build 1.0.3)");
 
 // ---------------------------------------------------------------------------
 // UMBRA screen overlay bridge
@@ -44,7 +44,7 @@ async function arrowRequest(path, body, timeoutMs) {
 }
 
 browser.runtime.onMessage.addListener((message) => {
-  if (!message || message.type !== "chessbot-arrow") return undefined;
+  if (!message || message.type !== "umbra-arrow") return undefined;
 
   if (message.action === "ping") {
     return arrowRequest("/ping");
@@ -80,7 +80,7 @@ async function stopPreviousEngine(tabId, url) {
     await browser.scripting.executeScript({
       target: { tabId },
       func: () => {
-        const stop = document.getElementById("chessbot-stop-engine");
+        const stop = document.getElementById("umbra-stop-engine");
         if (stop) stop.click();
       }
     });
