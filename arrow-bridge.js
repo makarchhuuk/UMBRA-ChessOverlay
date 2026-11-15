@@ -1,11 +1,11 @@
-// ChessBot arrow bridge
+// Umbra arrow bridge
 // ---------------------------------------------------------------------------
 // engine.js draws the "best move" arrow inside the page, so OBS records it.
 // This script:
 //   1. detects the arrow engine.js adds to the board SVG;
 //   2. hides it in the page;
 //   3. sends its on-screen geometry to the desktop helper
-//      (ChessBot Screen Overlay) through the extension background page.
+//      (Umbra Screen Overlay) through the extension background page.
 //
 // The helper redraws the arrow in a transparent window that screen capture
 // does not see.
@@ -16,10 +16,10 @@
 (() => {
     "use strict";
 
-    if (globalThis.__chessbotArrowBridge) return;
-    globalThis.__chessbotArrowBridge = true;
+    if (globalThis.__umbraArrowBridge) return;
+    globalThis.__umbraArrowBridge = true;
 
-    const HIDDEN_ATTR = "data-chessbot-external-hidden";
+    const HIDDEN_ATTR = "data-umbra-external-hidden";
     const HEARTBEAT_MS = 3500;
     const PING_MS = 5000;
     const FALLBACK_RGB = [255, 170, 0];
@@ -29,9 +29,9 @@
     // when the game-over modal appears. The overlay already stops the engine,
     // so that popup is noise - swallow just this message, keep every other alert.
     const nativeAlert = window.alert;
-    const filteredAlert = function chessbotFilteredAlert(message) {
+    const filteredAlert = function umbraFilteredAlert(message) {
         if (typeof message === "string" && /game has ended/i.test(message)) {
-            console.info("[ChessBot] game-over popup suppressed");
+            console.info("[Umbra] game-over popup suppressed");
             return;
         }
         return nativeAlert.call(window, message);
@@ -46,7 +46,7 @@
     }
 
     if (window.alert !== filteredAlert) {
-        console.info("[ChessBot] cannot override window.alert in this context");
+        console.info("[Umbra] cannot override window.alert in this context");
     }
 
     const runtime = (typeof browser !== "undefined" && browser.runtime && browser.runtime.sendMessage)
@@ -58,16 +58,18 @@
         : (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local ? chrome.storage.local : null);
 
     let helperOnline = false;
-    let current = null;      // { points: [[x,y],...], color: [r,g,b], alpha }
-    let second = null;       // same shape, the blue follow-up arrow
+    let current = null;      // { points: [[x,y],...], color: [r,g,b], alpha } - main arrow
+    let second = null;       // same shape, the black follow-up arrow
+    let third = null;        // same shape, the black frame around the next piece
     let currentPoly = null;
     let secondPoly = null;
+    let thirdPoly = null;
     let lastStateSent = null;
     let sendHandle = null;
     let stateInFlight = false;
     let pendingState = false;
 
-    // РІвЂќР‚РІвЂќР‚ transport РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
+    // --- transport -------------------------------------------------------------------------------
 
     const ENDPOINT = "http://127.0.0.1:8791";
     const REQUEST_TIMEOUT_MS = 1200;
@@ -157,18 +159,19 @@
             ? (relayResult ? "background said " + JSON.stringify(relayResult) : "background failed")
             : "no background runtime";
         console.warn(
-            "[ChessBot] overlay helper not reachable (direct: " + (directResult.error || "failed") +
+            "[Umbra] overlay helper not reachable (direct: " + (directResult.error || "failed") +
             "; " + relayInfo + "). Is start.vbs running?"
         );
     }
 
-    function serialize(state, secondState) {
+    function serialize(state, secondState, thirdState) {
         const first = serializeOne(state);
         const second = serializeOne(secondState);
-        // The follow-up frame can stay on the board on its own while the
-        // opponent is thinking, so "0|..." is a valid body.
-        if (first === "0" && second === "0") return "0";
-        return first + "|" + second;
+        const third = serializeOne(thirdState);
+        // The follow-up arrow and frame can stay on the board on their own
+        // while the opponent is thinking, so "0|..." is a valid body.
+        if (first === "0" && second === "0" && third === "0") return "0";
+        return first + "|" + second + "|" + third;
     }
 
     function serializeOne(state) {
@@ -183,14 +186,14 @@
 
     function sendState(force) {
         if (!helperOnline) return;
-        const body = document.hidden ? "0" : serialize(current, second);
+        const body = document.hidden ? "0" : serialize(current, second, third);
         if (!force && body === lastStateSent) return;
         if (stateInFlight) {
             pendingState = true;
             return;
         }
         stateInFlight = true;
-        call({ type: "chessbot-arrow", action: "state", body }).then((response) => {
+        call({ type: "umbra-arrow", action: "state", body }).then((response) => {
             stateInFlight = false;
             const ok = !!(response && response.ok);
             if (ok) {
@@ -217,7 +220,7 @@
         }, 40);
     }
 
-    // РІвЂќР‚РІвЂќР‚ geometry РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
+    // --- geometry --------------------------------------------------------------------------------
 
     function viewportOrigin() {
         const x = typeof window.mozInnerScreenX === "number" ? window.mozInnerScreenX : window.screenX;
@@ -336,7 +339,7 @@
         }
     }
 
-    // РІвЂќР‚РІвЂќР‚ page-side arrow РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
+    // --- page-side arrow -------------------------------------------------------------------------
 
     function hideInPage(poly) {
         poly.style.display = "none";
@@ -359,8 +362,13 @@
     }
 
     function takeArrow(poly) {
-        const isSecondary = poly.classList.contains("bestmove-2");
-        if (isSecondary) {
+        const isFrame = poly.classList.contains("bestmove-3");
+        const isFollowUp = poly.classList.contains("bestmove-2");
+        if (isFrame) {
+            thirdPoly = poly;
+            third = capture(poly);
+            if (helperOnline && third) hideInPage(poly);
+        } else if (isFollowUp) {
             secondPoly = poly;
             second = capture(poly);
             if (helperOnline && second) hideInPage(poly);
@@ -369,6 +377,8 @@
             current = capture(poly);
             secondPoly = null;
             second = null;
+            thirdPoly = null;
+            third = null;
             if (helperOnline && current) hideInPage(poly);
         }
         lastStateSent = null;
@@ -380,6 +390,8 @@
         current = null;
         secondPoly = null;
         second = null;
+        thirdPoly = null;
+        third = null;
         lastStateSent = null;
         scheduleSend();
     }
@@ -392,7 +404,7 @@
         return found;
     }
 
-    // РІвЂќР‚РІвЂќР‚ watchers РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
+    // --- watchers --------------------------------------------------------------------------------
 
     const observer = new MutationObserver((records) => {
         let changed = false;
@@ -407,7 +419,11 @@
             }
             for (const node of record.removedNodes) {
                 if (node.nodeType === 1 && node.classList && node.classList.contains("bestmove")) {
-                    if (node.classList.contains("bestmove-2")) {
+                    if (node.classList.contains("bestmove-3")) {
+                        thirdPoly = null;
+                        third = null;
+                        lastStateSent = null;
+                    } else if (node.classList.contains("bestmove-2")) {
                         secondPoly = null;
                         second = null;
                         lastStateSent = null;
@@ -438,6 +454,14 @@
             }
         }
 
+        if (thirdPoly && thirdPoly.isConnected) {
+            const data = capture(thirdPoly);
+            if (data) {
+                third = data;
+                lastStateSent = null;
+            }
+        }
+
         if (!currentPoly || !currentPoly.isConnected) return;
         const data = capture(currentPoly);
         if (!data) {
@@ -456,6 +480,10 @@
             const secondData = capture(secondPoly);
             second = secondData || null;
         }
+        if (thirdPoly && thirdPoly.isConnected) {
+            const thirdData = capture(thirdPoly);
+            third = thirdData || null;
+        }
         lastStateSent = null;
         hideUnhiddenArrows();
         scheduleSend();
@@ -467,15 +495,15 @@
 
     // An adapter may update the polygon in place (same node) after every move,
     // so ask for an immediate re-measure instead of waiting for the heartbeat.
-    window.addEventListener("chessbot-arrow-refresh", refreshGeometry);
-    window.addEventListener("chessbot-arrow-refresh", () => { lastStateSent = null; });
+    window.addEventListener("umbra-arrow-refresh", refreshGeometry);
+    window.addEventListener("umbra-arrow-refresh", () => { lastStateSent = null; });
 
     window.addEventListener("pagehide", () => {
         lastStateSent = null;
-        call({ type: "chessbot-arrow", action: "state", body: "0" });
+        call({ type: "umbra-arrow", action: "state", body: "0" });
     });
 
-    // РІвЂќР‚РІвЂќР‚ new game detection (drives the panel's auto mode) РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
+    // --- new game detection (drives the panel's auto mode) ---------------------------------------
 
     let lastGameKey = "";
     let gameReported = false;
@@ -510,7 +538,7 @@
     // the event: "start;<auto>;<minElo>;<maxElo>".
     function reportGame() {
         const send = (auto, min, max) => call({
-            type: "chessbot-arrow",
+            type: "umbra-arrow",
             action: "game",
             body: "start;" + (auto ? 1 : 0) + ";" + min + ";" + max
         });
@@ -529,7 +557,7 @@
     setInterval(checkGame, 900);
     checkGame();
 
-    // РІвЂќР‚РІвЂќР‚ command polling РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
+    // --- command polling -------------------------------------------------------------------------
     // The helper queues "scan;<depth>;<elo>" when auto mode fires, but the MV3
     // background page can be suspended between events. Polling from the page
     // keeps auto mode working: fetch the command, then wake the background.
@@ -554,22 +582,22 @@
                 const command = (text || "").trim();
                 if (!command || command === "none") return;
                 try {
-                    runtime.sendMessage({ type: "chessbot-arrow", action: "runCommand", body: command });
+                    runtime.sendMessage({ type: "umbra-arrow", action: "runCommand", body: command });
                 } catch (_) { }
             });
     }
 
     setInterval(pollCommand, 900);
 
-    // РІвЂќР‚РІвЂќР‚ helper handshake РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
+    // --- helper handshake ------------------------------------------------------------------------
 
     function ping() {
-        call({ type: "chessbot-arrow", action: "ping" }).then((response) => {
+        call({ type: "umbra-arrow", action: "ping" }).then((response) => {
             const ok = !!(response && response.ok);
             setStatus(ok);
             if (ok && !transportLogged) {
                 transportLogged = true;
-                console.info("[ChessBot] overlay helper reachable via " + (response.via || "unknown"));
+                console.info("[Umbra] overlay helper reachable via " + (response.via || "unknown"));
             }
             if (ok === helperOnline) {
                 if (ok) sendState(true);
@@ -583,12 +611,16 @@
                 document.querySelectorAll(".bestmove").forEach(hideInPage);
                 hideUnhiddenArrows();
                 if (!current) {
-                    const first = document.querySelector("polygon.bestmove:not(.bestmove-2)");
+                    const first = document.querySelector("polygon.bestmove:not(.bestmove-2):not(.bestmove-3)");
                     if (first) takeArrow(first);
                 }
                 if (!second) {
                     const follow = document.querySelector("polygon.bestmove.bestmove-2");
                     if (follow) takeArrow(follow);
+                }
+                if (!third) {
+                    const frame = document.querySelector("polygon.bestmove.bestmove-3");
+                    if (frame) takeArrow(frame);
                 }
             } else {
                 restoreInPage();
@@ -598,9 +630,9 @@
         });
     }
 
-    // РІвЂќР‚РІвЂќР‚ visible status (only while the helper is unreachable) РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
+    // --- visible status (only while the helper is unreachable) -----------------------------------
 
-    const STATUS_ID = "chessbot-overlay-status";
+    const STATUS_ID = "umbra-overlay-status";
     let offlineSince = 0;
 
     function setStatus(online) {
@@ -629,7 +661,7 @@
         }
     }
 
-    console.info("[UMBRA] screen-overlay bridge ready (overlay build 5.5.0)");
+    console.info("[UMBRA] screen-overlay bridge ready (overlay build 1.0.3)");
     ping();
     setInterval(ping, PING_MS);
     setInterval(() => setStatus(helperOnline), 2000);
