@@ -1,225 +1,395 @@
-document.addEventListener('DOMContentLoaded', () => {
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Umbra</title>
+</head>
+<body>
+  <div class="app">
+    <header class="masthead">
+      <img class="mark" src="icon.png" alt="" width="26" height="26">
+      <div class="brand">
+        <h1>Umbra</h1>
+        <p>Chess overlay</p>
+      </div>
+      <span class="version">v1.0.3</span>
+    </header>
 
-  // ── Stance Picker ──
-  const stancePicker = document.getElementById('stance-picker');
+    <section class="block">
+      <div class="label">Style</div>
+      <div class="seg" id="stance-picker" data-selected="1">
+        <button class="stance-btn" data-index="0">Defensive</button>
+        <button class="stance-btn" data-index="1">Neutral</button>
+        <button class="stance-btn" data-index="2">Offensive</button>
+      </div>
+    </section>
 
-  chrome.storage.local.get(['stance'], (result) => {
-    const saved = result.stance !== undefined ? result.stance : 1; // Default: Neutral
-    stancePicker.dataset.selected = saved;
-  });
+    <section class="block">
+      <div class="row">
+        <span class="label">Engine strength</span>
+        <span id="elo" class="figure">2200</span>
+      </div>
+      <input type="range" min="1" max="24" value="11" class="slider" id="elo-range">
+      <div id="compute-warning" class="note" style="display:none;">
+        <span id="elo-time">1 minute / move</span>
+      </div>
+    </section>
 
-  document.querySelectorAll('.stance-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const index = btn.dataset.index;
-      stancePicker.dataset.selected = index;
-      chrome.storage.local.set({ stance: index }, () => {
-        console.log(`Stance saved: ${index}`);
-      });
-    });
-  });
+    <section class="block">
+      <div class="row">
+        <span class="label">Auto mode</span>
+        <label class="switch">
+          <input type="checkbox" id="auto-mode">
+          <span class="track"><span class="thumb"></span></span>
+        </label>
+      </div>
+      <div class="range">
+        <div class="range-head"><span class="label tiny">From</span><span id="auto-min-value" class="figure sm">1400</span></div>
+        <input type="range" id="auto-min" class="slider thin" min="1400" max="3000" step="25" value="1400">
+      </div>
+      <div class="range">
+        <div class="range-head"><span class="label tiny">To</span><span id="auto-max-value" class="figure sm">2200</span></div>
+        <input type="range" id="auto-max" class="slider thin" min="1400" max="3000" step="25" value="2200">
+      </div>
+    </section>
 
+    <section class="block actions">
+      <div id="overlay-status" class="status" data-state="idle">
+        <span class="dot"></span><span id="overlay-text">checking overlay</span>
+      </div>
+      <button class="scan" id="scan-start">Scan board</button>
+    </section>
 
-  chrome.storage.local.get(['depth'], (result) => {
-    //console.log(`fetched elo-range as ${result.depth}`)
-    const range = document.getElementById('elo-range');
-    if (range.value != result.depth) {
-      range.value = result.depth || 20; // Default to 20 if not set
-      const event = new Event('input');
-      range.dispatchEvent(event);
+    <footer class="foot">
+      <span>Local engine</span>
+      <span class="sep">/</span>
+      <span>No cloud</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+
+  <style>
+    :root {
+      --ink: #0a0a0a;
+      --line: #1d1d1c;
+      --line-2: #2a2927;
+      --text: #e8e4dc;
+      --muted: #8c8981;
+      --faint: #57554f;
+      --ok: #8fa98c;
+      --warn: #b79a6b;
+      --bad: #b77a6e;
     }
-  });
 
-});
+    * { box-sizing: border-box; }
 
-function getEloFromDepth(depth) {
-  // Accurate linearly scaling depth-elo estimation, backed by
-  //  - https://web.ist.utl.pt/diogo.ferreira/papers/ferreira13impact.pdf
-  //  - Independent testers measuring Stockfish depth: 40 at 3400
-  //  - Independent testers measuring Stockfish depth: 1 at 1400
-
-  const stockfishDepthElo = [
-    { "depth": 1, "elo": 1400 },
-    { "depth": 2, "elo": 1480 },
-    { "depth": 3, "elo": 1560 },
-    { "depth": 4, "elo": 1640 },
-    { "depth": 5, "elo": 1720 },
-    { "depth": 6, "elo": 1800 },
-    { "depth": 7, "elo": 1880 },
-    { "depth": 8, "elo": 1960 },
-    { "depth": 9, "elo": 2040 },
-    { "depth": 10, "elo": 2120 },
-    { "depth": 11, "elo": 2200 },
-    { "depth": 12, "elo": 2280 },
-    { "depth": 13, "elo": 2360, "time": "3 seconds / move", "title": "CM" },
-    { "depth": 14, "elo": 2440, "time": "7 seconds / move", "title": "CM" },
-    { "depth": 15, "elo": 2520, "time": "12 seconds / move", "title": "FM" },
-    { "depth": 16, "elo": 2600, "time": "15 seconds / move", "title": "FM" },
-    { "depth": 17, "elo": 2680, "time": "23 seconds / move", "title": "IM" },
-    { "depth": 18, "elo": 2760, "time": "30 seconds / move", "title": "IM" },
-    { "depth": 19, "elo": 2840, "time": "44 seconds / move", "title": "GM" },
-    { "depth": 20, "elo": 2900, "time": "52 seconds / move", "title": "GM" },
-    { "depth": 21, "elo": 2925, "time": "1 minute / move", "title": "GM" },
-    { "depth": 22, "elo": 2950, "time": "1 minute 7 seconds / move", "title": "GM" },
-    { "depth": 23, "elo": 2975, "time": "1 minute 18 seconds / move", "title": "GM" },
-    { "depth": 24, "elo": 3000, "time": "1 minute 30 seconds / move", "title": "GM" }
-    // after further analysis, I decided to omit any depth >24. It just takes an unreasonable amount of time to compute
-  ]
-
-  // Find the depth object in the array
-  const result = stockfishDepthElo.find(entry => entry.depth === parseInt(depth));
-
-  // Return ELO if found, otherwise return a fallback message
-
-  //console.log(result)
-  if (result?.time) {
-    document.getElementById("elo").innerHTML = `${result.elo} <span style="display:inline-block;padding:1px 4px;border:1px solid #2a2927;color:#8c8981;font-family:Consolas,monospace;font-size:8px;letter-spacing:.08em;vertical-align:middle;">${result.title}</span>`;
-    document.getElementById("compute-warning").style.display = "block";
-    document.getElementById("compute-warning").innerHTML = `<span id="elo-time">${result.time}</span>`;
-  } else {
-    document.getElementById("elo").innerHTML = `${result.elo}`;
-    document.getElementById("compute-warning").style.display = "none";
-  }
-  
-  return result ? result.elo : `Depth ${depth} not found in the dataset.`;
-}
-
-document.getElementById("elo-range").addEventListener("input", (event) => {
-
-
-  //console.log("Input value changed to:", event.target.value);
-  getEloFromDepth(event.target.value)
-
-});
-
-
-document.getElementById("elo-range").addEventListener("change", (event) => {
-  
-  let depth = event.target.value;
-
-  chrome.storage.local.set({ depth }, () => {
-    console.log(`Elo range state saved: ${depth}`);
-  });
-})
-
-
-
-// ---------------------------------------------------------------------------
-// Auto mode: every new game gets arrows with a random ELO from the range.
-// The popup is the only control surface - the overlay helper just follows.
-// ---------------------------------------------------------------------------
-
-const OVERLAY_ENDPOINT = "http://127.0.0.1:8791";
-
-document.addEventListener('DOMContentLoaded', () => {
-  const autoCheck = document.getElementById('auto-mode');
-  const autoMin = document.getElementById('auto-min');
-  const autoMax = document.getElementById('auto-max');
-  const autoMinValue = document.getElementById('auto-min-value');
-  const autoMaxValue = document.getElementById('auto-max-value');
-  const overlayStatus = document.getElementById('overlay-status');
-  const overlayText = document.getElementById('overlay-text');
-
-  const paint = () => {
-    autoMinValue.textContent = autoMin.value;
-    autoMaxValue.textContent = autoMax.value;
-  };
-
-  const pushSettings = () => {
-    const body = `${autoCheck.checked ? 1 : 0};${autoMin.value};${autoMax.value}`;
-    fetch(`${OVERLAY_ENDPOINT}/settings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-      body
-    }).catch(() => {});
-  };
-
-  let settingsTimer = null;
-  const saveSettings = () => {
-    chrome.storage.local.set({
-      auto: autoCheck.checked,
-      minElo: parseInt(autoMin.value, 10),
-      maxElo: parseInt(autoMax.value, 10)
-    });
-    clearTimeout(settingsTimer);
-    settingsTimer = setTimeout(pushSettings, 100);
-  };
-
-  chrome.storage.local.get(['auto', 'minElo', 'maxElo'], (saved) => {
-    autoCheck.checked = !!saved.auto;
-    autoMin.value = saved.minElo || 1400;
-    autoMax.value = saved.maxElo || 2200;
-    if (parseInt(autoMin.value, 10) > parseInt(autoMax.value, 10)) {
-      autoMax.value = autoMin.value;
+    html {
+      line-height: 1.5;
+      -webkit-text-size-adjust: 100%;
     }
-    paint();
-    pushSettings();
-  });
 
-  autoMin.addEventListener('input', () => {
-    if (parseInt(autoMin.value, 10) > parseInt(autoMax.value, 10)) {
-      autoMax.value = autoMin.value;
+    body {
+      margin: 0;
+      width: 288px;
+      background: var(--ink);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+      font-size: 12px;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
     }
-    paint();
-    saveSettings();
-  });
 
-  autoMax.addEventListener('input', () => {
-    if (parseInt(autoMax.value, 10) < parseInt(autoMin.value, 10)) {
-      autoMin.value = autoMax.value;
+    .app { padding: 18px 16px 12px; }
+
+    /* ── masthead ─────────────────────────────────────────────── */
+    .masthead {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
     }
-    paint();
-    saveSettings();
-  });
 
-  autoCheck.addEventListener('change', saveSettings);
+    .mark {
+      width: 26px;
+      height: 26px;
+      flex: none;
+      border-radius: 5px;
+      display: block;
+    }
 
-  fetch(`${OVERLAY_ENDPOINT}/ping`, { cache: 'no-store' })
-    .then((response) => {
-      overlayStatus.dataset.state = response.ok ? 'ok' : 'warn';
-      overlayText.textContent = response.ok ? 'overlay connected' : 'no answer';
-    })
-    .catch(() => {
-      overlayStatus.dataset.state = 'off';
-      overlayText.textContent = 'overlay off — run start.vbs';
-    });
-});
+    .brand { flex: 1; min-width: 0; }
 
+    .brand h1 {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      font-size: 16px;
+      font-weight: 400;
+      letter-spacing: .30em;
+      text-transform: uppercase;
+      line-height: 1.1;
+      color: var(--text);
+    }
 
-document.getElementById("scan-start").addEventListener("click", () => {
-  // Query the current active tab
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const tab = tabs[0];  // Get the active tab
-      const url = tab.url || "";
+    .brand p {
+      margin: 4px 0 0;
+      font-size: 8.5px;
+      font-weight: 500;
+      letter-spacing: .20em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
 
-      // Check if the tab is a supported chess site
-      const onChess = url.includes("chess.com");
+    .version {
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 9px;
+      letter-spacing: .04em;
+      color: var(--faint);
+    }
 
-      if (onChess) {
+    /* ── blocks ───────────────────────────────────────────────── */
+    .block { padding: 13px 0 14px; }
+    .block + .block { border-top: 1px solid var(--line); }
 
-          let args = {
-            'depth': document.getElementById("elo-range").value,
-            'stance': document.getElementById("stance-picker").dataset.selected
-          }
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
 
-          chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: function(args) {
-                window.args = args;  // Assign the arguments to the global window object
-            },
-            args: [args]
-        });
+    .label {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
 
+    .label.tiny { color: var(--faint); letter-spacing: .16em; }
 
-chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    files: ['arrow-bridge.js', 'engine.js']
-});
+    .figure {
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 14px;
+      letter-spacing: .02em;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
 
+    .figure.sm { font-size: 11px; color: var(--muted); }
 
+    /* ── segmented ────────────────────────────────────────────── */
+    .seg {
+      display: flex;
+      margin-top: 9px;
+      height: 32px;
+      border: 1px solid var(--line-2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
 
-      } else {
-          // Optionally, alert the user if the tab is not a supported page
-          alert("This is a chess.com page only.");
-      }
-  });
-});
+    .stance-btn {
+      flex: 1;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      color: var(--muted);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .stance-btn + .stance-btn { border-left: 1px solid var(--line); }
+
+    .stance-btn:hover { color: var(--text); }
+
+    .seg[data-selected="0"] .stance-btn:nth-child(1),
+    .seg[data-selected="1"] .stance-btn:nth-child(2),
+    .seg[data-selected="2"] .stance-btn:nth-child(3) {
+      background: var(--text);
+      color: var(--ink);
+      border-left-color: transparent;
+    }
+
+    .seg[data-selected="1"] .stance-btn:nth-child(3),
+    .seg[data-selected="2"] .stance-btn:nth-child(3) { border-left-color: var(--line); }
+
+    /* ── sliders ──────────────────────────────────────────────── */
+    .slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 16px;
+      margin: 8px 0 0;
+      background: transparent;
+      cursor: pointer;
+      outline: none;
+    }
+
+    .slider.thin { height: 14px; margin-top: 5px; }
+
+    .slider::-webkit-slider-runnable-track {
+      height: 1px;
+      background: var(--line-2);
+    }
+
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 10px;
+      height: 10px;
+      margin-top: -4.5px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--text);
+    }
+
+    .slider::-moz-range-track {
+      height: 1px;
+      background: var(--line-2);
+    }
+
+    .slider::-moz-range-thumb {
+      width: 10px;
+      height: 10px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--text);
+    }
+
+    .slider:focus-visible { outline: 1px solid var(--text); outline-offset: 3px; }
+
+    .note {
+      margin-top: 7px;
+      font-size: 9px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--warn);
+    }
+
+    .range { margin-top: 11px; }
+
+    .range-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    /* ── switch ───────────────────────────────────────────────── */
+    .switch { position: relative; display: inline-flex; cursor: pointer; }
+    .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+    .switch .track {
+      width: 34px;
+      height: 18px;
+      border-radius: 999px;
+      border: 1px solid var(--line-2);
+      background: transparent;
+      display: inline-flex;
+      align-items: center;
+      padding: 4px;
+      transition: background .15s ease, border-color .15s ease;
+    }
+
+    .switch .thumb {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--faint);
+      transition: transform .15s ease, background .15s ease;
+    }
+
+    .switch input:checked + .track {
+      background: var(--text);
+      border-color: var(--text);
+    }
+
+    .switch input:checked + .track .thumb {
+      transform: translateX(16px);
+      background: var(--ink);
+    }
+
+    .switch input:focus-visible + .track { outline: 1px solid var(--text); outline-offset: 3px; }
+
+    /* ── status + action ──────────────────────────────────────── */
+    .actions { padding-bottom: 6px; }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .status .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--faint);
+      flex: none;
+    }
+
+    .status[data-state="ok"] .dot { background: var(--ok); }
+    .status[data-state="warn"] .dot { background: var(--warn); }
+    .status[data-state="off"] .dot { background: var(--bad); }
+
+    .scan {
+      width: 100%;
+      height: 40px;
+      margin-top: 11px;
+      background: transparent;
+      border: 1px solid var(--line-2);
+      border-radius: 2px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: .26em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    .scan:hover {
+      background: var(--text);
+      border-color: var(--text);
+      color: var(--ink);
+    }
+
+    .scan:active { transform: translateY(1px); }
+    .scan:disabled { opacity: .35; cursor: default; }
+    .scan:focus-visible { outline: 1px solid var(--text); outline-offset: 2px; }
+
+    /* ── footer ───────────────────────────────────────────────── */
+    .foot {
+      display: flex;
+      justify-content: center;
+      gap: 7px;
+      padding-top: 12px;
+      font-size: 8px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
+
+    .foot .sep { opacity: .5; }
+
+    button, input { font-family: inherit; }
+
+    /* Force CSS painting: native button theming ignores the dark palette. */
+    button {
+      -webkit-appearance: none;
+      appearance: none;
+    }
+  </style>
+</body>
+</html>
