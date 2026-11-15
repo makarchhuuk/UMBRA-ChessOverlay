@@ -13,7 +13,7 @@ Two hard rules:
 
 ## Getting set up
 
-- Windows 10/11 for the helper (`overlay/`). The extension part also runs in Firefox, but the arrow overlay does not.
+- Windows 10/11 for the helper (`overlay/`). Firefox 109+ for the extension — there is no Chrome or Edge build.
 - No build step. The extension is loaded unpacked straight from the repository.
 
 ```sh
@@ -21,7 +21,7 @@ git clone <your-fork-url>
 cd umbra
 ```
 
-Load the repository root in `about:debugging` (Firefox) or `chrome://extensions` (Developer mode). Launch the helper with `overlay/start.vbs`.
+Load the repository root in `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…**. Launch the helper with `overlay/start.vbs`.
 
 ## Before you open a pull request
 
