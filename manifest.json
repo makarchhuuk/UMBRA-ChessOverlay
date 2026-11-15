@@ -1,35 +1,45 @@
 {
-    "manifest_version": 3,
-    "name": "Umbra",
-    "description": "Minimal chess analysis overlay with on-board arrows.",
-    "version": "5.5.0",
-    "icons": {
-        "16": "icon.png",
-        "48": "icon.png",
-        "128": "icon.png"
-      },
-    "permissions": ["activeTab", "scripting", "storage"],
-    "host_permissions": [
-        "https://*.chess.com/*",
-        "http://127.0.0.1:8791/*"
-    ],
-    "action": {
-        "default_popup": "popup.html",
-        "default_title": "Umbra"
-    },
-    "background": {
-        "scripts": ["background.js"]
-    },
-    "web_accessible_resources": [
-        {
-            "resources": ["engine.js"],
-            "matches": ["https://*.chess.com/*"]
-        }
-    ],
-    "browser_specific_settings": {
-        "gecko": {
-            "id": "chessbot-overlay@local",
-            "strict_min_version": "109.0"
-        }
+  "manifest_version": 3,
+  "name": "Umbra",
+  "description": "Minimal chess analysis overlay with on-board arrows.",
+  "version": "1.0.3",
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://*.chess.com/*",
+    "http://127.0.0.1:8791/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Umbra"
+  },
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "engine.js"
+      ],
+      "matches": [
+        "https://*.chess.com/*"
+      ]
     }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "umbra-overlay@local",
+      "strict_min_version": "109.0"
+    }
+  }
 }
