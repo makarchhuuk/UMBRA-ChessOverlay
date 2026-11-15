@@ -1,6 +1,6 @@
 (() => {
     console.info("Engine ready.")
-    document.documentElement.setAttribute('data-chessbot-engine-stop', 'false');
+    document.documentElement.setAttribute('data-umbra-engine-stop', 'false');
     let isBoardFlipped = document.querySelector(".board").classList.contains("flipped");
     let myColor = isBoardFlipped ? "b" : "w";
     let { playerRating } = inferRatings();
@@ -9,7 +9,7 @@
 
     function stopEngineFromUi(event) {
         event?.preventDefault?.();
-        document.documentElement.setAttribute('data-chessbot-engine-stop', 'true');
+        document.documentElement.setAttribute('data-umbra-engine-stop', 'true');
         stopEngine("manual_stop");
     }
 
@@ -91,7 +91,7 @@
         try { document.removeEventListener('customMessage', customMessageHandler); } catch {}
         try { if (window.disableAudioMonitor) window.disableAudioMonitor(); } catch {}
         document
-            .getElementById("progress-stockfish-chessbot")
+            .getElementById("progress-stockfish-umbra")
             ?.remove();
         removeAllHighlights();
         console.log("Engine stopped cleanly.");
@@ -190,7 +190,7 @@
             //removeAllHighlights()
             const layer = document.getElementsByClassName("coordinates")[0];
             if (!layer) return;
-            drawArrow(layer, target[0]+target[1], target[2]+target[3]);
+            drawArrow(layer, target[0]+target[1], target[2]+target[3], options);
             return layer;
     }
 
@@ -199,11 +199,11 @@
     // -------------------------------------------------
 
         function reportProgress(depth) {
-            const loaderHTML = `<div style="position:relative;top:15px;" class="tooltip-container" id="progress-stockfish-chessbot">
+            const loaderHTML = `<div style="position:relative;top:15px;" class="tooltip-container" id="progress-stockfish-umbra">
                 <div class="tooltip-text">
                     Depth
                     <depth>0</depth>/${depth}<br>
-                    <a id="chessbot-stop-engine" style="text-decoration:underline;cursor:pointer" href="#">Stop</a>
+                    <a id="umbra-stop-engine" style="text-decoration:underline;cursor:pointer" href="#">Stop</a>
                 </div>
                 <span class="loader"></span>
             <style>
@@ -257,29 +257,42 @@
 
       // Append the HTML code to the body
       document.getElementById("board-layout-main").insertAdjacentHTML("beforeend",loaderHTML);
-      document.getElementById("chessbot-stop-engine")?.addEventListener("click", stopEngineFromUi);
+      document.getElementById("umbra-stop-engine")?.addEventListener("click", stopEngineFromUi);
 
     }
 
     function reportDepthCycle(depth) {
-        document.querySelector('#progress-stockfish-chessbot .tooltip-text depth').innerHTML = depth;
+        document.querySelector('#progress-stockfish-umbra .tooltip-text depth').innerHTML = depth;
     }
 
     const engine = new Worker("/bundles/app/js/vendor/jschessengine/stockfish.asm.1abfa10c.js");
 
     // The principal variation of the current search: pv[0] is the move the
     // engine will play, pv[1] is the reply it expects, pv[2] is our next move.
-    // pv[0] is drawn as the orange arrow, and the origin square of pv[2] gets a
-    // thin frame so the piece to grab next is already known.
+    // pv[0] is drawn as the orange arrow, pv[2] as a black arrow of the same
+    // shape, and its origin square gets a thin black frame so the piece to grab
+    // next is already known.
     let pvMoves = [];
     let lastDrawnArrowKey = "";
     let lastNextSquare = null;
+    let lastNextMove = null;
 
     function readPv(message) {
         const index = message.indexOf(" pv ");
         if (index === -1) return;
         const moves = message.slice(index + 4).trim().split(/\s+/).filter(Boolean);
         if (moves.length) pvMoves = moves.slice(0, 4);
+    }
+
+    // The predicted follow-up gets an arrow of its own: same geometry as the
+    // orange one, drawn in black so it reads as the plan behind the move.
+    function drawNextMoveArrow(move) {
+        highlightMoveArrow(move, {
+            color: "rgba(0,0,0,0.65)",
+            opacity: 0.75,
+            extraClass: "bestmove-2",
+            idSuffix: "-next"
+        });
     }
 
     // A thin square frame around one cell, drawn in the same svg layer as the
@@ -304,7 +317,7 @@
         const half = CELL / 2;
 
         const poly = document.createElementNS(SVG_NS, "polygon");
-        poly.classList.add("arrow", "bestmove", "bestmove-2");
+        poly.classList.add("arrow", "bestmove", "bestmove-3");
         poly.setAttribute("data-arrow", square + square);
         poly.setAttribute("id", `arrow-next-${square}`);
         poly.setAttribute("points", [
@@ -326,7 +339,7 @@
         const key = bestMove + "|" + pvMoves.join(" ");
         // The board can wipe the overlay svg (move, resize, re-render) without
         // a new bestmove, so redraw whenever the arrow left the DOM.
-        const hasArrow = !!document.querySelector(".bestmove:not(.bestmove-2)");
+        const hasArrow = !!document.querySelector(".bestmove:not(.bestmove-2):not(.bestmove-3)");
         if (key === lastDrawnArrowKey && hasArrow) return;
         lastDrawnArrowKey = key;
 
@@ -335,19 +348,20 @@
 
         const next = pvMoves[0] === bestMove ? pvMoves[2] : null;
         lastNextSquare = next ? next.slice(0, 2) : null;
+        lastNextMove = next && next.length >= 4 ? next.slice(0, 4) : null;
+        if (lastNextMove) drawNextMoveArrow(lastNextMove);
         if (lastNextSquare) drawNextMoveMarker(lastNextSquare);
     }
 
-    // The frame for the predicted follow-up survives while the opponent is
-    // thinking, so the cursor can already sit on that piece.
+    // The follow-up arrow and frame survive while the opponent is thinking, so
+    // the cursor can already sit on that piece.
     function clearNextMarker() {
-        document.querySelectorAll(".bestmove-2").forEach((el) => el.remove());
+        document.querySelectorAll(".bestmove-2, .bestmove-3").forEach((el) => el.remove());
     }
 
     function restoreNextMarker() {
-        if (!lastNextSquare) return;
-        if (document.querySelector(".bestmove-2")) return;
-        drawNextMoveMarker(lastNextSquare);
+        if (lastNextMove && !document.querySelector(".bestmove-2")) drawNextMoveArrow(lastNextMove);
+        if (lastNextSquare && !document.querySelector(".bestmove-3")) drawNextMoveMarker(lastNextSquare);
     }
 
     engine.onmessage = function(event) {
@@ -450,7 +464,7 @@
     function feedStockfish(fen) {
         if (engineKilled) return;
         const depth = Number(window.args?.depth || 15);
-        const progress = document.getElementById("progress-stockfish-chessbot")
+        const progress = document.getElementById("progress-stockfish-umbra")
         if (progress === null){
             reportProgress(depth)
         } else {
@@ -478,7 +492,7 @@
         console.info("Move detected")
         if (engineKilled) return;
         // stop engine manually
-        if (document.documentElement.getAttribute('data-chessbot-engine-stop') === 'true') {
+        if (document.documentElement.getAttribute('data-umbra-engine-stop') === 'true') {
             stopEngine("manual_stop");
             return;
         }
