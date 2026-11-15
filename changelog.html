@@ -1,43 +1,127 @@
-# Changelog
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Umbra — What's new</title>
+  <style>
+    :root {
+      --ink: #0a0a0a;
+      --line: #1d1d1c;
+      --line-2: #2a2927;
+      --text: #e8e4dc;
+      --muted: #8c8981;
+      --faint: #57554f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 44px 22px 64px;
+      background: var(--ink);
+      color: var(--text);
+      font: 13px/1.65 "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    main { max-width: 560px; margin: 0 auto; }
 
-All notable changes to Umbra. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
+    .masthead {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .masthead img { width: 30px; height: 30px; border-radius: 6px; display: block; }
+    .brand h1 {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      font-size: 20px;
+      font-weight: 400;
+      letter-spacing: .26em;
+      text-transform: uppercase;
+      line-height: 1.1;
+    }
+    .brand p {
+      margin: 3px 0 0;
+      font-size: 9px;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
+    .version {
+      margin-left: auto;
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 10px;
+      color: var(--faint);
+    }
 
-## 1.0.3 — first public release
+    h2 {
+      margin: 34px 0 10px;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    ul { margin: 0; padding-left: 18px; }
+    li { margin: 0 0 7px; }
+    li::marker { color: var(--faint); }
+    code {
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+    p { margin: 0 0 10px; }
+    .muted { color: var(--muted); }
+    .rule { height: 1px; background: var(--line); margin: 40px 0 0; }
+    footer {
+      margin-top: 18px;
+      font-size: 10px;
+      letter-spacing: .06em;
+      color: var(--faint);
+    }
+  </style>
+</head>
+<body>
+<main>
+  <div class="masthead">
+    <img src="icon.png" alt="">
+    <div class="brand">
+      <h1>Umbra</h1>
+      <p>Chess overlay</p>
+    </div>
+    <span class="version">v1.0.3</span>
+  </div>
 
-First public build: a Firefox extension plus a Windows overlay helper. The internal build before the
-public release was numbered 5.5.0 — numbering restarts at 1.0.3 here.
+  <h2>What's new</h2>
+  <ul>
+    <li>New name and logo — Umbra, with a knight mark.</li>
+    <li>Popup redesigned: black, hairline rules, no gradients.</li>
+    <li>An orange arrow for the move, a black arrow for the predicted follow-up, and a thin black frame around the piece to move next.</li>
+    <li>The overlay now lives in the tray. Left or right click opens the menu: Restart, Quit, toggle arrows, capture mode, status, log.</li>
+    <li><em>Stop frame</em> switch: keep the arrows out of screen capture, or show them on stream.</li>
+    <li>Telemetry removed. The engine runs locally and nothing is uploaded.</li>
+  </ul>
 
-### Added
+  <h2>Fixes</h2>
+  <ul>
+    <li>Helper no longer crashes on startup when the tray icon loads.</li>
+    <li>No more grey flash on popup buttons during first paint.</li>
+    <li>Log file is trimmed automatically when it grows past 2 MB.</li>
+  </ul>
 
-- `overlay/` — Windows helper, now part of this repository. Tray-only control: left or right click
-  opens the menu (Restart, Quit, toggle arrows, stop frame, status, log).
-- **Stop frame** switch in the tray: keep the arrows out of screen capture, or show them on stream.
-- Hotkeys: `Ctrl+Alt+H` toggles the arrows, `Ctrl+Alt+Q` quits the helper.
-- `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE`, `.gitignore`, README banner.
+  <div class="rule"></div>
 
-### Changed
+  <h2>Что нового</h2>
+  <ul>
+    <li>Новое имя и логотип — Umbra, с конём.</li>
+    <li>Поповер перерисован: чёрный, тонкие линии, без градиентов.</li>
+    <li>Оранжевая стрелка на ход, чёрная — на предсказанный следующий, и тонкая чёрная рамка на фигуре, которой ходить.</li>
+    <li>Оверлей живёт в трее. ЛКМ или ПКМ открывает меню: «Перезапустить», «Выключить», стрелки, стоп-кадр, статус, лог.</li>
+    <li>Переключатель «Стоп-кадр»: стрелки можно скрыть из захвата экрана или показать в трансляции.</li>
+    <li>Телеметрия удалена. Движок работает локально, наружу ничего не уходит.</li>
+  </ul>
 
-- Renamed to **Umbra**, new logo: black rounded tile with a knight.
-- Popup redesigned: black, hairline separators, no gradients or glows.
-- Orange arrow for the suggested move, black arrow for the predicted follow-up, and a thin black frame
-  around the piece to move next. The black marks stay visible while the opponent is thinking.
-- Tray menu reordered — **Restart** and **Quit** are the first two items.
-- Log file moved to `%TEMP%\umbra-arrow.log`, truncated when it grows past 2 MB.
-- Extension ID is `umbra-overlay@local`; settings are not carried over from earlier builds.
-
-### Removed
-
-- Floating control panel in the top-right corner of the screen.
-- `analytics.js` and its remote endpoint — nothing is uploaded anywhere now.
-- Upstream `chessbot-overlay` package that was not part of this fork.
-- Lichess support inherited from upstream — the site adapter was dropped before this release.
-
-### Fixed
-
-- Helper crashed on `AddHook` because `$source` (the icon bitmap) shadowed the `HwndSource` variable.
-- Grey flash on popup buttons during first paint (native button theming showing through).
-
-## Before 1.0
-
-Inherited from [bogenc/ChessBot](https://github.com/bogenc/ChessBot): the engine injection, the arrow
-bridge, the popup controls, and the Lichess variant that was later removed from this fork.
+  <footer>Umbra 1.0.3 — first public release · local engine, no cloud.</footer>
+</main>
+</body>
+</html>
